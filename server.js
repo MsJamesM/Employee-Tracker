@@ -36,6 +36,7 @@ async function init() {
         { name: "Add an employee", value: "addEmployee" },
         { name: "Add an employee role", value: "addRole" },
         { name: "Fire an employee", value: "fireEmployee" },
+        { name: "Lay off department", value: "layOffDepartment" },
       ],
     },
   ]);
@@ -68,6 +69,9 @@ async function init() {
     case "fireEmployee":
       fireEmployee();
       break;
+    case "layOffDepartment":
+      layOffDepartment();
+      break;
     case "back":
       if (previousPrompt) {
         previousPrompt();
@@ -79,8 +83,7 @@ async function init() {
   previousPrompt = choicesMenu === "Go back" ? previousPrompt : init;
 }
 
-// results
-// VIEW DEPARTMENTS
+// view departments
 function viewAllDepartments() {
   db.query("SELECT * FROM department", (err, results) => {
     if (err) {
@@ -92,10 +95,7 @@ function viewAllDepartments() {
   });
 }
 
-// ❌ VIEW BY DEPARTMENT ❌
-// grr
-
-// VIEW EMPLOYEES
+// view employees
 function viewAllEmployees() {
   db.query(
     "SELECT employee.id, employee.first_name, employee.last_name, role.title, role.salary, manager.first_name AS manager_first_name, manager.last_name AS manager_last_name FROM employee JOIN role ON role_id = role.id LEFT JOIN employee AS manager ON employee.manager_id = manager.id",
@@ -110,11 +110,11 @@ function viewAllEmployees() {
   );
 }
 
-// VIEW ROLES
+// view roles
 function viewAllRoles() {
   db.query("SELECT * FROM role", (err, results) => {
     if (err) {
-      console.error("There was an error viewing departments");
+      console.error("There was an error viewing roles");
       return;
     }
     console.table(results);
@@ -122,7 +122,7 @@ function viewAllRoles() {
   });
 }
 
-// UPDATE EMPLOYEE ROLE
+// update roles
 function updateRole() {
   inquirer
     .prompt([
@@ -170,7 +170,7 @@ function updateRole() {
     });
 }
 
-// ADD DEPARTMENT
+// add department
 function addDepartment() {
   inquirer
     .prompt([
@@ -211,7 +211,7 @@ function addDepartment() {
     });
 }
 
-// ADD ROLE
+// add role
 function addRole() {
   inquirer
     .prompt([
@@ -261,7 +261,7 @@ function addRole() {
     });
 }
 
-// FIRE EMPLOYEE
+// fire employee
 function fireEmployee() {
   db.query("SELECT * FROM employee", (err, employees) => {
     if (err) {
@@ -314,6 +314,62 @@ function fireEmployee() {
           );
         } else {
           console.log("❌ㅤFiring cancelled");
+          init();
+        }
+      });
+  });
+}
+
+// lay off department
+function layOffDepartment() {
+  db.query("SELECT * FROM department", (err, departments) => {
+    if (err) {
+      console.error("There was an error retrieving departments", err);
+      return;
+    }
+
+    const departmentImmunity = departments.filter(
+      (department) => !(department.name === "Management")
+    );
+
+    const departmentChoices = departmentImmunity.map(({ id, name }) => ({
+      name: `${name}`,
+      value: id,
+    }));
+
+    inquirer
+      .prompt([
+        {
+          type: "list",
+          name: "departmentId",
+          message: "Which department are you laying off?",
+          choices: departmentChoices,
+        },
+        {
+          type: "list",
+          name: "confirm",
+          message: "Are you sure you want to fire all these people?",
+          choices: ["Yes, fire them all", "No, go back"],
+        },
+      ])
+      .then((answers) => {
+        if (answers.confirm === "Yes") {
+          const departmentId = answers.departmentId;
+
+          db.query(
+            "DELETE FROM department WHERE id = ?",
+            [departmentId],
+            (err, result) => {
+              if (err) {
+                console.error("Error removing department", err);
+              } else if (result.affectedRows > 0) {
+                console.log("✔️ㅤDepartment layoff successful");
+              }
+              init();
+            }
+          );
+        } else {
+          console.log("❌ㅤDepartment layoff cancelled");
           init();
         }
       });
