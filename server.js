@@ -1,8 +1,8 @@
+// connecting
 const mysql = require("mysql");
 const inquirer = require("inquirer");
 require("dotenv").config();
 
-// connecting
 const db = mysql.createConnection({
   host: "localhost",
   user: process.env.DB_USER,
@@ -18,8 +18,6 @@ db.connect((err) => {
   console.log("Successfully connected to the database");
   init();
 });
-
-// TO DO: move ^ to separate file
 
 // prompts
 async function init() {
@@ -99,7 +97,7 @@ function viewAllDepartments() {
 // view employees
 function viewAllEmployees() {
   db.query(
-    "SELECT employee.id, employee.first_name, employee.last_name, role.title, role.salary, manager.first_name AS manager_first_name, manager.last_name AS manager_last_name FROM employee JOIN role ON role_id = role.id LEFT JOIN employee AS manager ON employee.manager_id = manager.id",
+    "SELECT employee.id, employee.first_name, employee.last_name, role.title, role.salary, department.name AS department_name, manager.first_name AS manager_first_name, manager.last_name AS manager_last_name FROM employee LEFT JOIN role ON employee.role_id = role.id LEFT JOIN department ON role.department_id = department.id LEFT JOIN employee AS manager ON employee.manager_id = manager.id",
     (err, results) => {
       if (err) {
         console.error("There was an error viewing employees");
@@ -113,62 +111,97 @@ function viewAllEmployees() {
 
 // view roles
 function viewAllRoles() {
-  db.query("SELECT * FROM role", (err, results) => {
-    if (err) {
-      console.error("There was an error viewing roles");
-      return;
+  db.query(
+    "SELECT role.id, role.title, role.salary, department.name AS department FROM role JOIN department ON role.department_id = department.id",
+    (err, results) => {
+      if (err) {
+        console.error("There was an error viewing roles");
+        return;
+      }
+      console.table(results);
+      init();
     }
-    console.table(results);
-    init();
-  });
+  );
 }
 
 // update roles
 function updateRole() {
-  inquirer
-    .prompt([
-      {
-        type: "input",
-        name: "employeeId",
-        message: "Provide the ID of the employee whose role you wish to update",
-      },
-      {
-        type: "input",
-        name: "roleId",
-        message:
-          "Provide the role ID of the employee whose role you wish to update",
-      },
-      {
-        type: "list",
-        name: "backOption",
-        message: "Confirm update?",
-        choices: [
-          { name: "Yes, update!", value: "continue" },
-          { name: "No, return to menu!", value: "back" },
-        ],
-      },
-    ])
-    .then((answers) => {
-      if (answers.backOption === "back") {
+  db.query(
+    "SELECT id, CONCAT(first_name, ' ', last_name) AS name FROM employee",
+    (err, employeeResults) => {
+      if (err) {
+        console.error("There was an error retrieving employees", err);
         init();
-      } else {
-        const employeeId = answers.employeeId;
-        const roleId = answers.roleId;
-
-        db.query(
-          "UPDATE employee SET role_id = ? WHERE id = ?",
-          [roleId, employeeId],
-          (err, result) => {
-            if (err) {
-              console.error("Error updating employee's role", err);
-            } else {
-              console.log("✔️ㅤEmployee's role has been successfully updated!");
-            }
-            init();
-          }
-        );
+        return;
       }
-    });
+
+      const employeeChoices = employeeResults.map((employee) => ({
+        name: employee.name,
+        value: employee.id,
+      }));
+
+      db.query("SELECT id, title FROM role", (err, roleResults) => {
+        if (err) {
+          console.error("There was an error retrieving roles", err);
+          init();
+          return;
+        }
+
+        const roleChoices = roleResults.map((role) => ({
+          name: role.title,
+          value: role.id,
+        }));
+
+        inquirer
+          .prompt([
+            {
+              type: "list",
+              name: "employeeId",
+              message: "Select the employee whose role you wish to update",
+              choices: employeeChoices,
+            },
+            {
+              type: "list",
+              name: "roleId",
+              message: "Select the new role for the employee",
+              choices: roleChoices,
+            },
+            {
+              type: "list",
+              name: "backOption",
+              message: "Confirm update?",
+              choices: [
+                { name: "Yes, update!", value: "continue" },
+                { name: "No, return to menu!", value: "back" },
+              ],
+            },
+          ])
+          .then((answers) => {
+            if (answers.backOption === "back") {
+              init();
+            } else {
+              const employeeId = answers.employeeId;
+              const roleId = answers.roleId;
+
+              db.query(
+                "UPDATE employee SET role_id = ? WHERE id = ?",
+                [roleId, employeeId],
+                (err, result) => {
+                  if (err) {
+                    console.error("Error updating employee's role", err);
+                  } else {
+                    console.log(
+                      "✔️ㅤEmployee's role has been successfully updated!"
+                    );
+                  }
+                  init();
+                }
+              );
+            }
+          });
+      });
+    }
+  );
 }
 
 // add department
@@ -201,7 +234,7 @@ function addDepartment() {
           [newDepartment],
           (err, result) => {
             if (err) {
-              console.error("Error adding department", err);
+              console.error("There was an error adding department", err);
             } else {
               console.log("✔️ㅤDepartment has been successfully added!");
             }
@@ -214,108 +247,187 @@ function addDepartment() {
 
 // add role
 function addRole() {
-  inquirer
-    .prompt([
-      {
-        type: "input",
-        name: "newRoleTitle",
-        message: "Provide a new role name",
-      },
-      {
-        type: "input",
-        name: "newRoleDepartment",
-        message: "Provide the ID of the new role's department",
-      },
-      {
-        type: "input",
-        name: "newRoleSalary",
-        message: "Provide a salary for the new role",
-      },
-      {
-        type: "list",
-        name: "backOption",
-        message: "Confirm new role?",
-        choices: [
-          { name: "Yes, add role!", value: "continue" },
-          { name: "No, return to menu!", value: "back" },
-        ],
-      },
-    ])
-    .then((answers) => {
-      if (answers.backOption === "back") {
-        init();
-      } else {
-        const { newRoleTitle, newRoleDepartment, newRoleSalary } = answers;
-        db.query(
-          "INSERT INTO role (title, department_id, salary) VALUES (?, ?, ?)",
-          [newRoleTitle, newRoleDepartment, newRoleSalary],
-          (err, result) => {
-            if (err) {
-              console.error("Error adding new role", err);
-            } else {
-              console.log("✔️ㅤNew role has been successfully added!");
+  db.query("SELECT id, name FROM department", (err, results) => {
+    if (err) {
+      console.error("There was an error retrieving departments", err);
+      init();
+      return;
+    }
+
+    const departmentChoices = results.map((department) => ({
+      name: department.name,
+      value: department.id,
+    }));
+
+    inquirer
+      .prompt([
+        {
+          type: "input",
+          name: "newRoleTitle",
+          message: "Provide a new role name",
+        },
+        {
+          type: "list",
+          name: "newRoleDepartment",
+          message: "Choose the department for the new role",
+          choices: departmentChoices,
+        },
+        {
+          type: "input",
+          name: "newRoleSalary",
+          message: "Provide a salary for the new role",
+        },
+        {
+          type: "list",
+          name: "backOption",
+          message: "Confirm new role?",
+          choices: [
+            { name: "Yes, add role!", value: "continue" },
+            { name: "No, return to menu!", value: "back" },
+          ],
+        },
+      ])
+      .then((answers) => {
+        if (answers.backOption === "back") {
+          init();
+        } else {
+          const { newRoleTitle, newRoleDepartment, newRoleSalary } = answers;
+
+          db.query(
+            "INSERT INTO role (title, department_id, salary) VALUES (?, ?, ?)",
+            [newRoleTitle, newRoleDepartment, newRoleSalary],
+            (err, result) => {
+              if (err) {
+                console.error("There was an error adding new role", err);
+              } else {
+                console.log("✔️ㅤNew role has been successfully added!");
+              }
+              init();
             }
-            init();
-          }
-        );
-      }
-    });
+          );
+        }
+      });
+  });
 }
 
 // add employee
 function addEmployee() {
-  inquirer
-    .prompt([
-      {
-        type: "input",
-        name: "firstName",
-        message: "What is the new employee's first name?",
-      },
-      {
-        type: "input",
-        name: "lastName",
-        message: "What is the new employee's last name?",
-      },
-      {
-        type: "input",
-        name: "roleName",
-        message: "Provide the new employee's role",
-      },
-      {
-        type: "input",
-        name: "managerName",
-        message:
-          "Provide the new employee's manager ID (note: Michael Scott is 1)",
-      },
-      {
-        type: "list",
-        name: "backOption",
-        message: "Confirm new employee?",
-        choices: [
-          { name: "Yes, add employee!", value: "continue" },
-          { name: "No, return to menu!", value: "back" },
-        ],
-      },
-    ])
-    .then((answers) => {
-      if (answers.backOption === "back") {
+  const roleQuery = "SELECT title AS role FROM role";
+  const managerQuery =
+    "SELECT CONCAT(first_name, ' ', last_name) AS manager_name FROM employee WHERE manager_id IS NULL";
+
+  db.query(roleQuery, (err, roleResults) => {
+    if (err) {
+      console.error("There was an error retrieving roles", err);
+      init();
+      return;
+    }
+
+    const roleChoices = roleResults.map((role) => role.role);
+
+    db.query(managerQuery, (err, managerResults) => {
+      if (err) {
+        console.error("There was an error retrieving managers", err);
         init();
-      } else {
-        const { firstName, lastName, roleName, managerName } = answers;
-        db.query(
-          "INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)",
-          [firstName, lastName, roleName, managerName],
-          (err, result) => {
-            if (err) {
-              console.error("Error adding new employee", err);
-            } else {
-              console.log("✔️ Employee has been successfully added!");
-            }
-            init();
-          }
-        );
+        return;
       }
+
+      const managerChoices = managerResults.map(
+        (manager) => manager.manager_name
+      );
+
+      inquirer
+        .prompt([
+          {
+            type: "input",
+            name: "firstName",
+            message: "What is the new employee's first name?",
+          },
+          {
+            type: "input",
+            name: "lastName",
+            message: "What is the new employee's last name?",
+          },
+          {
+            type: "list",
+            name: "roleName",
+            message: "Choose the role for the new employee",
+            choices: roleChoices,
+          },
+          {
+            type: "list",
+            name: "managerName",
+            message: "Choose the manager for the new employee",
+            choices: managerChoices,
+          },
+          {
+            type: "list",
+            name: "backOption",
+            message: "Confirm new employee?",
+            choices: [
+              { name: "Yes, add employee!", value: "continue" },
+              { name: "No, return to menu!", value: "back" },
+            ],
+          },
+        ])
+        .then((answers) => {
+          if (answers.backOption === "back") {
+            init();
+          } else {
+            const { firstName, lastName, roleName, managerName } = answers;
+
+            db.query(
+              "SELECT id FROM role WHERE title = ?",
+              [roleName],
+              (err, roleResult) => {
+                if (err || roleResult.length === 0) {
+                  console.error("There was an error retrieving role", err);
+                  init();
+                  return;
+                }
+
+                const roleId = roleResult[0].id;
+
+                db.query(
+                  "SELECT id FROM employee WHERE CONCAT(first_name, ' ', last_name) = ?",
+                  [managerName],
+                  (err, managerResult) => {
+                    if (err || managerResult.length === 0) {
+                      console.error(
+                        "There was an error retrieving manager name",
+                        err
+                      );
+                      init();
+                      return;
+                    }
+
+                    const managerId = managerResult[0].id;
+
+                    db.query(
+                      "INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)",
+                      [firstName, lastName, roleId, managerId],
+                      (err, result) => {
+                        if (err) {
+                          console.error(
+                            "There was an error adding new employee",
+                            err
+                          );
+                        } else {
+                          console.log(
+                            "✔️ㅤEmployee has been successfully added!"
+                          );
+                        }
+                        init();
+                      }
+                    );
+                  }
+                );
+              }
+            );
+          }
+        });
     });
+  });
 }
 
 // fire employee
@@ -365,7 +477,7 @@ function fireEmployee() {
             [employeeId],
             (err, result) => {
               if (err) {
-                console.error("Error firing employee", err);
+                console.error("There was an error firing employee", err);
               } else if (result.affectedRows > 0) {
                 console.log("✔️ㅤEmployee has been fired");
               }
@@ -424,7 +536,7 @@ function layOffDepartment() {
             [departmentId],
             (err, result) => {
               if (err) {
-                console.error("Error removing department", err);
+                console.error("There was an error removing department", err);
               } else if (result.affectedRows > 0) {
                 console.log("✔️ㅤDepartment layoff successful");
               }
