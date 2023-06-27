@@ -19,6 +19,8 @@ db.connect((err) => {
   init();
 });
 
+// TO DO: move ^ to separate file
+
 // prompts
 async function init() {
   const { choicesMenu } = await inquirer.prompt([
@@ -28,7 +30,6 @@ async function init() {
       message: "Please choose from the list",
       choices: [
         { name: "View all departments", value: "viewAllDepartments" },
-        { name: "View employees by department", value: "viewByDepartments" },
         { name: "View all employees", value: "viewAllEmployees" },
         { name: "View all employee roles", value: "viewAllRoles" },
         { name: "Update an employee role", value: "updateRole" },
@@ -261,6 +262,62 @@ function addRole() {
     });
 }
 
+// add employee
+function addEmployee() {
+  inquirer
+    .prompt([
+      {
+        type: "input",
+        name: "firstName",
+        message: "What is the new employee's first name?",
+      },
+      {
+        type: "input",
+        name: "lastName",
+        message: "What is the new employee's last name?",
+      },
+      {
+        type: "input",
+        name: "roleName",
+        message: "Provide the new employee's role",
+      },
+      {
+        type: "input",
+        name: "managerName",
+        message:
+          "Provide the new employee's manager ID (note: Michael Scott is 1)",
+      },
+      {
+        type: "list",
+        name: "backOption",
+        message: "Confirm new employee?",
+        choices: [
+          { name: "Yes, add employee!", value: "continue" },
+          { name: "No, return to menu!", value: "back" },
+        ],
+      },
+    ])
+    .then((answers) => {
+      if (answers.backOption === "back") {
+        init();
+      } else {
+        const { firstName, lastName, roleName, managerName } = answers;
+        db.query(
+          "INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)",
+          [firstName, lastName, roleName, managerName],
+          (err, result) => {
+            if (err) {
+              console.error("Error adding new employee", err);
+            } else {
+              console.log("✔️ Employee has been successfully added!");
+            }
+            init();
+          }
+        );
+      }
+    });
+}
+
 // fire employee
 function fireEmployee() {
   db.query("SELECT * FROM employee", (err, employees) => {
@@ -293,7 +350,10 @@ function fireEmployee() {
           type: "list",
           name: "confirm",
           message: "Are you sure you want to fire this employee?",
-          choices: ["Yes, fire them", "No, go back"],
+          choices: [
+            { name: "Yes, fire them", value: "Yes" },
+            { name: "No, go back", value: "No" },
+          ],
         },
       ])
       .then((answers) => {
@@ -349,7 +409,10 @@ function layOffDepartment() {
           type: "list",
           name: "confirm",
           message: "Are you sure you want to fire all these people?",
-          choices: ["Yes, fire them all", "No, go back"],
+          choices: [
+            { name: "Yes, fire them all", value: "Yes" },
+            { name: "No, go back", value: "No" },
+          ],
         },
       ])
       .then((answers) => {
