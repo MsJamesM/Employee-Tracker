@@ -35,6 +35,7 @@ async function init() {
         { name: "Add a department", value: "addDepartment" },
         { name: "Add an employee", value: "addEmployee" },
         { name: "Add an employee role", value: "addRole" },
+        { name: "Fire an employee", value: "fireEmployee" },
       ],
     },
   ]);
@@ -63,6 +64,9 @@ async function init() {
       break;
     case "addRole":
       addRole();
+      break;
+    case "fireEmployee":
+      fireEmployee();
       break;
     case "back":
       if (previousPrompt) {
@@ -248,7 +252,7 @@ function addRole() {
             if (err) {
               console.error("Error adding new role", err);
             } else {
-              console.log("✔️ New role has been successfully added!");
+              console.log("✔️ㅤNew role has been successfully added!");
             }
             init();
           }
@@ -257,58 +261,61 @@ function addRole() {
     });
 }
 
-// ADD EMPLOYEE
-function addEmployee() {
-  inquirer
-    .prompt([
-      {
-        type: "input",
-        name: "firstName",
-        message: "What is the new employee's first name?",
-      },
-      {
-        type: "input",
-        name: "lastName",
-        message: "What is the new employee's last name?",
-      },
-      {
-        type: "input",
-        name: "roleName",
-        message: "Provide the new employee's role",
-      },
-      {
-        type: "input",
-        name: "managerName",
-        message:
-          "Provide the new employee's manager ID (note: Michael Scott is 1)",
-      },
-      {
-        type: "list",
-        name: "backOption",
-        message: "Confirm new employee?",
-        choices: [
-          { name: "Yes, add employee!", value: "continue" },
-          { name: "No, return to menu!", value: "back" },
-        ],
-      },
-    ])
-    .then((answers) => {
-      if (answers.backOption === "back") {
-        init();
-      } else {
-        const { firstName, lastName, roleName, managerName } = answers;
-        db.query(
-          "INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)",
-          [firstName, lastName, roleName, managerName],
-          (err, result) => {
-            if (err) {
-              console.error("Error adding new employee", err);
-            } else {
-              console.log("✔️ Employee has been successfully added!");
+// FIRE EMPLOYEE
+function fireEmployee() {
+  db.query("SELECT * FROM employee", (err, employees) => {
+    if (err) {
+      console.error("There was an error retrieving employees", err);
+      return;
+    }
+
+    const michaelImmunity = employees.filter(
+      (employee) =>
+        !(employee.first_name === "Michael" && employee.last_name === "Scott")
+    );
+
+    const employeeChoices = michaelImmunity.map(
+      ({ id, first_name, last_name }) => ({
+        name: `${first_name} ${last_name}`,
+        value: id,
+      })
+    );
+
+    inquirer
+      .prompt([
+        {
+          type: "list",
+          name: "employeeId",
+          message: "Which employee are you firing?",
+          choices: employeeChoices,
+        },
+        {
+          type: "list",
+          name: "confirm",
+          message: "Are you sure you want to fire this employee?",
+          choices: ["Yes, fire them", "No, go back"],
+        },
+      ])
+      .then((answers) => {
+        if (answers.confirm === "Yes") {
+          const employeeId = answers.employeeId;
+
+          db.query(
+            "DELETE FROM employee WHERE id = ?",
+            [employeeId],
+            (err, result) => {
+              if (err) {
+                console.error("Error firing employee", err);
+              } else if (result.affectedRows > 0) {
+                console.log("✔️ㅤEmployee has been fired");
+              }
+              init();
             }
-            init();
-          }
-        );
-      }
-    });
+          );
+        } else {
+          console.log("❌ㅤFiring cancelled");
+          init();
+        }
+      });
+  });
 }
