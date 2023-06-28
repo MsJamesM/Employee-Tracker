@@ -30,7 +30,7 @@ async function init() {
         { name: "View all departments", value: "viewAllDepartments" },
         { name: "View all employees", value: "viewAllEmployees" },
         { name: "View all employee roles", value: "viewAllRoles" },
-        { name: "Update an employee role", value: "updateRole" },
+        { name: "Update an employee's role", value: "updateRole" },
         { name: "Add a department", value: "addDepartment" },
         { name: "Add an employee", value: "addEmployee" },
         { name: "Add an employee role", value: "addRole" },
@@ -124,7 +124,7 @@ function viewAllRoles() {
   );
 }
 
-// update roles
+// update employee's role
 function updateRole() {
   db.query(
     "SELECT id, CONCAT(first_name, ' ', last_name) AS name FROM employee",
